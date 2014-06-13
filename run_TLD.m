@@ -36,13 +36,60 @@ opt.n_par           = struct('overlap',0.2,'num_patches',100); % negative exampl
 opt.tracker         = struct('occlusion',10);
 opt.control         = struct('maxbbox',maxbbox,'update_detector',update_detector,'drop_img',1,'repeat',1);
 
-        
-% Run TLD -----------------------------------------------------------------
-%profile on;
-[bb,conf] = tldExample(opt);
-%profile off;
-%profile viewer;
+if exist('challenge','var')
+    try 
+        global tld; % holds results and temporal variables
 
-% Save results ------------------------------------------------------------
-dlmwrite([opt.output '/tld.txt'],[bb; conf]');
-disp('Results saved to ./_output.');
+        % INITIALIZATION ----------------------------------------------------------
+        [image_paths, bb] = vot_initialize();
+
+        opt.source.bb = bb2pts(bb)';
+
+        images = [];
+        for i = 1:length(image_paths)
+            images = [images dir(image_paths{i})];
+        end
+
+        % images are returned with absolute path
+        for i = 1:length(images)
+            images(i).name = image_paths{i};
+        end
+
+        opt.source.files  = images;
+        opt.source.idx    = 1:length(opt.source.files);
+
+        % load the first frame into memory
+        opt.source.im0  = img_get(opt.source,opt.source.idx(1));
+
+        tld = tldInit(opt,[]); % train initial detector and initialize the 'tld' structure
+
+        % RUN-TIME ----------------------------------------------------------------
+
+        for i = 2:length(tld.source.idx) % for every frame
+
+            tld = tldProcessFrame(tld,i); % process frame i
+
+        end
+
+        bb = tld.bb; conf = tld.conf; % return results        
+        %tldInitFirstFrame
+        
+        dlmwrite('output.txt',pts2bb(bb'));
+    catch err
+        disp 'An error occurred'
+        err
+    end
+
+    exit;
+else
+        
+    % Run TLD -----------------------------------------------------------------
+    %profile on;
+    [bb,conf] = tldExample(opt);
+    %profile off;
+    %profile viewer;
+
+    % Save results ------------------------------------------------------------
+    dlmwrite([opt.output '/tld.txt'],[bb; conf]');
+    disp('Results saved to ./_output.');
+end
